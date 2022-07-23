@@ -9,24 +9,9 @@ import SwiftUI
 
 struct ContentView: View {
 
-    @State private var lineChartItems: [LineChartData.Items]?
-    @State private var items: LineChartData.Items
-    let randomPlotsCount: Int = 30
+    @StateObject var items: LineChartDataItems = LineChartDataItems()
+    let randomPlotsCount: Int = 4
     let graphHeight: CGFloat = 140
-
-    init() {
-
-        var lineChartData: [LineChartData] = []
-
-        for _ in 1...randomPlotsCount {
-            let data = LineChartData.init(value: CGFloat.random(in: 0...100), datetime: .init(time: "01:00", date: "12"))
-            lineChartData.append(data)
-        }
-
-        items = LineChartData.Items(
-            data: lineChartData, graphHeight: graphHeight
-        )
-    }
 
     var body: some View {
         VStack {
@@ -43,37 +28,13 @@ struct ContentView: View {
                 }
             }
             .frame(height: self.graphHeight)
-            .onTapGesture {
-                var lineChartData: [LineChartData] = []
-
-                for _ in 1...randomPlotsCount {
-                    let data = LineChartData.init(value: CGFloat.random(in: 0...100), datetime: .init(time: "01:00", date: "12"))
-                    lineChartData.append(data)
-                }
-
-                items = LineChartData.Items(
-                    data: lineChartData, graphHeight: graphHeight
-                )
-            }
         }
     }
 }
 
-extension LineChartData {
-    struct DateTime {
-        let time: String
-        let date: String
-    }
-}
-
-struct LineChartData  {
-    let value: CGFloat?
-    let datetime: DateTime
-}
-
 struct LineChart: View {
 
-    let items: LineChartData.Items
+    @StateObject var items: LineChartDataItems
 
     // グラフの線と文字の間のスペース
     let yAxisSpaceLabel: CGFloat = 11.0
@@ -87,13 +48,12 @@ struct LineChart: View {
     // ステップのサイズ
     let stepWidth: CGFloat = 40
 
-
     // 最大ステップカウント数
     var stepMaxCount: Int {
         items.data.count
     }
 
-    let padding: CGFloat = LineChartData.Items.padding
+    let padding: CGFloat = LineChartDataItems.padding
 
     // 初回値、目標値の横軸線の表示系管理
 
@@ -101,23 +61,45 @@ struct LineChart: View {
 
         GeometryReader { geometry in
 
-            VStack(spacing: 0) {
+            ScrollViewReader { reader in
 
-                ScrollView(.horizontal) {
+                VStack(spacing: 0) {
 
-                    ZStack(alignment: .top) {
+                    ScrollView(.horizontal) {
 
-                        borderTop
-                        verticalLine
+                        ZStack(alignment: .center) {
 
-                        ZStack {
-                            lineAndCircle
-                            label
-//                            optionLine
+                            verticalLine
+
+                            ZStack {
+                                lineAndCircle
+                                label
+                                    .frame(maxWidth: .infinity, maxHeight: geometry.size.height)
+                                    .id(999)
+
+                            }
+                            // 画面操作しない時は自動でスクロールされない
+                            .padding(1)
+                            .background(Color.green.opacity(0.3))
+                            
                         }
-                        .padding(.vertical, padding / 2)
+                        .frame(width: CGFloat(stepMaxCount) * stepWidth, height: geometry.size.height)
+
                     }
-                    .frame(width: CGFloat(stepMaxCount) * stepWidth, height: geometry.size.height)
+                    
+                    .onChange(of: items.data) { id in
+                        reader.scrollTo(999, anchor: .center)
+                    }
+                    .onTapGesture {
+
+                        let data = LineChartData.init(
+                            scrollId: items.data.count + 1 ,
+                            value: CGFloat.random(in: 0...100),
+                            datetime: .init(time: "01:00", date: "12"))
+                        items.data.append(data)
+
+                    }
+
                 }
             }
         }
@@ -129,12 +111,14 @@ struct LineChart: View {
 
             let points = items.plots(size: geometry.size)
             let labels:[String] = items.measureLabels
+            let scrollIds:[String] = items.measureLabels
 
             ForEach(Array(points.enumerated()), id: \.offset) { index, point in
-                if let unwrappedPoint = point {
+                if let point = point {
                     Text(labels[index])
                         .frame(width: self.stepWidth, alignment: .center)
-                        .offset(x: unwrappedPoint.x - self.stepWidth / 2, y: unwrappedPoint.y + yAxisSpaceLabel)
+                        .offset(x: point.x - self.stepWidth / 2, y: point.y + yAxisSpaceLabel)
+
                 }
             }
         }
@@ -240,128 +224,89 @@ extension Path {
     }
 }
 
-extension LineChartData {
 
-    struct Items {
+class LineChartDataItems: ObservableObject {
 
-        // グラフデータ
-        let data: [LineChartData]
+    // グラフデータ
+    @Published var data: [LineChartData] = []
 
-        // 最大値(nullは前後値で変換済み)
-        var max: CGFloat {
-            let notNill: [CGFloat] = measures.compactMap{ $0 }
-            return notNill.max() ?? CGFloat(0)
-        }
+    // グラフ全体の高さ
+    @Published var graphHeight: CGFloat = 140
 
-        // 最小値(nullは前後値で変換済み)
-        var min: CGFloat {
-            let notNill: [CGFloat] = measures.compactMap{ $0 }
-            return notNill.min() ?? CGFloat(0)
-        }
+    // 最大値(nullは前後値で変換済み)
+    var max: CGFloat {
+        let notNill: [CGFloat] = measures.compactMap{ $0 }
+        return notNill.max() ?? CGFloat(0)
+    }
 
-        // 　上下の余白
-        static var padding: CGFloat = 60
+    // 最小値(nullは前後値で変換済み)
+    var min: CGFloat {
+        let notNill: [CGFloat] = measures.compactMap{ $0 }
+        return notNill.min() ?? CGFloat(0)
+    }
 
-        // グラフ全体の高さ
-        let graphHeight: CGFloat
-
-        // プロットエリア
-        var plotAreaHeight: CGFloat {
-            return graphHeight - Self.padding
-        }
-
-        // 測定結果データ
-        var measures: [CGFloat?] {
-            return data.map {
-                $0.value
-            }
-        }
-
-        // ラベルを返す(エラーの場合は空文字)
-        var measureLabels: [String] {
-            return data.map {
-                return  String(format: "%.1f", $0.value ?? 0)
-            }
-        }
-
-        public func plots(size: CGSize) ->  [CGPoint?] {
-
-            var result: [CGPoint?] = []
-
-            measures.enumerated().forEach { index, value in
-
-                guard let nonNillValue = value else {
-                    return result.append(nil)
-                }
-
-                let stepWidth = CGFloat(40)
-                let height = size.height
-
-                let x = stepWidth * CGFloat(index) + stepWidth * 0.5
-                let y: CGFloat
+    // 　上下の余白
+    static var padding: CGFloat = 60
 
 
-                if max == min {
-                    y = height / 2
-                } else {
-                    y = height - (height / ( max - min) * (max - min  - (max - nonNillValue)))
-                }
+    // プロットエリア
+    var plotAreaHeight: CGFloat {
+        return graphHeight - Self.padding
+    }
 
-                result.append(CGPoint(x: x,y: y))
-            }
-            return result
-        }
-
-//        var initialValue: CGFloat? {
-//
-//            if let first = getLineChartData(.initial)?.first {
-//
-//                guard let valueNotNill = first.value else {
-//                    return nil
-//                }
-//
-//                if valueNotNill >= max {
-//                    return 0
-//                }
-//
-//                if valueNotNill <= min {
-//                    return  plotAreaHeight
-//                }
-//
-//                return calculateYAxis(y: valueNotNill)
-//
-//            }
-//            return nil
-//        }
-//
-//        var targetValue: CGFloat? {
-//
-//            if let target = getLineChartData(.target)?.first {
-//
-//                guard let valueNotNill = target.value else {
-//                    return nil
-//                }
-//
-//                if valueNotNill >= max {
-//                    return 0
-//                }
-//
-//                if valueNotNill <= min {
-//                    return  plotAreaHeight
-//                }
-//
-//                return calculateYAxis(y: valueNotNill)
-//
-//            }
-//            return nil
-//        }
-
-        func calculateYAxis(y: CGFloat) -> CGFloat {
-            return plotAreaHeight - (plotAreaHeight / ( max - min) * (max - min  - (max - y)))
+    // 測定結果データ
+    var measures: [CGFloat?] {
+        return data.map {
+            $0.value
         }
     }
 
+    // ラベルを返す(エラーの場合は空文字)
+    var measureLabels: [String] {
+        return data.map {
+            return  String(format: "%.1f", $0.value ?? 0)
+        }
+    }
+
+    var ids: [Int] {
+        return data.map {
+            return $0.scrollId
+        }
+    }
+
+    public func plots(size: CGSize) ->  [CGPoint?] {
+
+        var result: [CGPoint?] = []
+
+        measures.enumerated().forEach { index, value in
+
+            guard let nonNillValue = value else {
+                return result.append(nil)
+            }
+
+            let stepWidth = CGFloat(40)
+            let height = size.height
+
+            let x = stepWidth * CGFloat(index) + stepWidth * 0.5
+            let y: CGFloat
+
+
+            if max == min {
+                y = height / 2
+            } else {
+                y = height - (height / ( max - min) * (max - min  - (max - nonNillValue)))
+            }
+
+            result.append(CGPoint(x: x,y: y))
+        }
+        return result
+    }
+
+    func calculateYAxis(y: CGFloat) -> CGFloat {
+        return plotAreaHeight - (plotAreaHeight / ( max - min) * (max - min  - (max - y)))
+    }
 }
+
 
 struct Border: View {
 
@@ -382,5 +327,23 @@ struct Border: View {
 
         }
     }
+}
+
+extension LineChartData {
+    struct DateTime: Hashable {
+        let time: String
+        let date: String
+    }
+}
+
+struct LineChartData: Hashable  {
+    static func == (lhs: LineChartData, rhs: LineChartData) -> Bool {
+        return lhs.scrollId == rhs.scrollId
+    }
+
+    let id = UUID()
+    let scrollId: Int
+    let value: CGFloat?
+    let datetime: DateTime
 }
 
