@@ -10,23 +10,23 @@ import SwiftUI
 struct ContentView: View {
 
     @State private var lineChartItems: [LineChartData.Items]?
-
     @State private var items: LineChartData.Items
+    let randomPlotsCount: Int = 30
+    let graphHeight: CGFloat = 140
 
     init() {
 
         var lineChartData: [LineChartData] = []
 
-        for _ in 1...200 {
+        for _ in 1...randomPlotsCount {
             let data = LineChartData.init(value: CGFloat.random(in: 0...100), datetime: .init(time: "01:00", date: "12"))
             lineChartData.append(data)
         }
 
         items = LineChartData.Items(
-            data: lineChartData
+            data: lineChartData, graphHeight: graphHeight
         )
     }
-
 
     var body: some View {
         VStack {
@@ -42,17 +42,17 @@ struct ContentView: View {
                     .background(Color.red.opacity(0.3))
                 }
             }
-            .frame(height: 140)
+            .frame(height: self.graphHeight)
             .onTapGesture {
                 var lineChartData: [LineChartData] = []
 
-                for _ in 1...200 {
+                for _ in 1...randomPlotsCount {
                     let data = LineChartData.init(value: CGFloat.random(in: 0...100), datetime: .init(time: "01:00", date: "12"))
                     lineChartData.append(data)
                 }
 
                 items = LineChartData.Items(
-                    data: lineChartData
+                    data: lineChartData, graphHeight: graphHeight
                 )
             }
         }
@@ -84,6 +84,10 @@ struct LineChart: View {
     // グラフの線の太さ
     let lineWidth: CGFloat = 0.5
 
+    // ステップのサイズ
+    let stepWidth: CGFloat = 40
+
+
     // 最大ステップカウント数
     var stepMaxCount: Int {
         items.data.count
@@ -98,6 +102,7 @@ struct LineChart: View {
         GeometryReader { geometry in
 
             VStack(spacing: 0) {
+
                 ScrollView(.horizontal) {
 
                     ZStack(alignment: .top) {
@@ -112,7 +117,7 @@ struct LineChart: View {
                         }
                         .padding(.vertical, padding / 2)
                     }
-                    .frame(width: CGFloat(stepMaxCount * 40), height: geometry.size.height)
+                    .frame(width: CGFloat(stepMaxCount) * stepWidth, height: geometry.size.height)
                 }
             }
         }
@@ -124,13 +129,12 @@ struct LineChart: View {
 
             let points = items.plots(size: geometry.size)
             let labels:[String] = items.measureLabels
-            let stepWidth: CGFloat = 40
 
             ForEach(Array(points.enumerated()), id: \.offset) { index, point in
                 if let unwrappedPoint = point {
                     Text(labels[index])
-                        .frame(width: stepWidth, alignment: .center)
-                        .offset(x: unwrappedPoint.x - stepWidth / 2, y: unwrappedPoint.y + yAxisSpaceLabel)
+                        .frame(width: self.stepWidth, alignment: .center)
+                        .offset(x: unwrappedPoint.x - self.stepWidth / 2, y: unwrappedPoint.y + yAxisSpaceLabel)
                 }
             }
         }
@@ -142,37 +146,14 @@ struct LineChart: View {
             .frame(height: 1)
     }
 
-    // 初回値、目標値の横軸ライン
-//    private var optionLine: some View {
-//
-//        GeometryReader { geometry in
-//
-//            ZStack {
-//
-//                if let initialValue = items.initialValue {
-//                    Border(color: Color.red)
-//                        .frame(height: 2)
-//                        .offset(y: initialValue)
-//                    //                        .opacity(options.`init` == true ? 1 : 0)
-//                }
-//
-//                if let targetValue = items.targetValue {
-//                    Border(color: Color.blue)
-//                        .frame(height: 2)
-//                        .offset(y: targetValue)
-//                    //                        .opacity(options.target == true ? 1 : 0)
-//                }
-//            }
-//        }
-//    }
-
     // グラフの縦線
     private var verticalLine: some View {
 
         GeometryReader { geometry in
             Path.verticalLine(
                 max: stepMaxCount,
-                size: geometry.size
+                stepWidth: self.stepWidth,
+                height: geometry.size.height
             )
             .stroke(Color.gray, style: StrokeStyle(lineWidth: lineWidth, dash: [2]))
         }
@@ -204,7 +185,6 @@ struct LineChart: View {
 }
 
 extension Path {
-
     // 円表示
     static func circle(points: [CGPoint?], size: CGSize, radius: CGFloat) -> Path {
         var path = Path()
@@ -249,14 +229,12 @@ extension Path {
     }
 
     // 縦軸のダッシュ線
-    static func verticalLine(max: Int,  size: CGSize) -> Path {
-
-        let stepWidth: CGFloat = 40
+    static func verticalLine(max: Int,  stepWidth: CGFloat, height: CGFloat) -> Path {
         let space: CGFloat = stepWidth * 0.5
         var path = Path()
         for index in 0...max {
             path.move(to: .init(x: stepWidth * CGFloat(index) + space, y: 0))
-            path.addLine(to: .init(x: stepWidth * CGFloat(index) + space, y: size.height))
+            path.addLine(to: .init(x: stepWidth * CGFloat(index) + space, y: height))
         }
         return path
     }
@@ -285,11 +263,11 @@ extension LineChartData {
         static var padding: CGFloat = 60
 
         // グラフ全体の高さ
-        let totalHeight: CGFloat = 140
+        let graphHeight: CGFloat
 
         // プロットエリア
         var plotAreaHeight: CGFloat {
-            return totalHeight - Self.padding
+            return graphHeight - Self.padding
         }
 
         // 測定結果データ
