@@ -79,7 +79,7 @@ struct LineChart: View {
 
                             }
                             // 画面操作しない時は自動でスクロールされない
-                            .padding(1)
+                            .padding(10)
                             .background(Color.green.opacity(0.3))
                             
                         }
@@ -88,18 +88,17 @@ struct LineChart: View {
                     }
                     
                     .onChange(of: items.data) { id in
-                        reader.scrollTo(999, anchor: .center)
+                        reader.scrollTo(999, anchor: .trailing)
                     }
                     .onTapGesture {
 
                         let data = LineChartData.init(
                             scrollId: items.data.count + 1 ,
                             value: CGFloat.random(in: 0...100),
-                            datetime: .init(time: "01:00", date: "12"))
+                            datetime: .init(time: "01:00", date: "12")
+                        )
                         items.data.append(data)
-
                     }
-
                 }
             }
         }
