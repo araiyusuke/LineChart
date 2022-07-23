@@ -79,8 +79,8 @@ struct LineChart: View {
     let lineWidth: CGFloat = 0.5
 
     // 最大ステップカウント数
-    var stepMaxCount: CGFloat {
-        CGFloat(items.data.count)
+    var stepMaxCount: Int {
+        items.data.count
     }
 
     let padding: CGFloat = LineChartData.Items.padding
@@ -165,6 +165,7 @@ struct LineChart: View {
 
         GeometryReader { geometry in
             Path.verticalLine(
+                max: stepMaxCount,
                 size: geometry.size
             )
             .stroke(Color.gray, style: StrokeStyle(lineWidth: lineWidth, dash: [2]))
@@ -242,9 +243,9 @@ extension Path {
     }
 
     // 縦軸のダッシュ線
-    static func verticalLine(max: Int = 12,  size: CGSize) -> Path {
+    static func verticalLine(max: Int,  size: CGSize) -> Path {
 
-        let stepWidth: CGFloat = size.width / CGFloat(max)
+        let stepWidth: CGFloat = 40
         let space: CGFloat = stepWidth * 0.5
         var path = Path()
         for index in 0...max {
@@ -303,7 +304,7 @@ extension LineChartData {
             }
         }
 
-        public func plots(size: CGSize, count: Int = 12) ->  [CGPoint?] {
+        public func plots(size: CGSize) ->  [CGPoint?] {
 
             var result: [CGPoint?] = []
 
@@ -313,7 +314,7 @@ extension LineChartData {
                     return result.append(nil)
                 }
 
-                let stepWidth = size.width / CGFloat(count)
+                let stepWidth = CGFloat(40)
                 let height = size.height
 
                 let x = stepWidth * CGFloat(index) + stepWidth * 0.5
