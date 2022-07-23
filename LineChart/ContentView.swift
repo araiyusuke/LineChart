@@ -12,11 +12,18 @@ struct ContentView: View {
     @StateObject var items: LineChartDataItems = LineChartDataItems()
 
     var body: some View {
-        LineChart(items: items)
-            .frame(
-                maxWidth: 300,
-                maxHeight: 90
-            )
+        LineChart(
+            items: items,
+            columnCount: 10,
+            circleRadius: 4,
+            circleColor: Color.red,
+            labelSize: 13,
+            labelColor: Color.red
+        )
+        .frame(
+            maxWidth: 320,
+            maxHeight: 130
+        )
     }
 }
 
@@ -27,14 +34,23 @@ struct LineChart: View {
     // グラフの線と文字の間のスペース
     let yAxisSpaceLabel: CGFloat = 11.0
 
-    // グラフにプロットする円の半径
-    let circleRadius: CGFloat = 5
-
     // グラフの線の太さ
     let lineWidth: CGFloat = 0.5
 
     // ステップのサイズ
-    let stepWidth: CGFloat = 40
+    @State var stepWidth: CGFloat = 0
+
+    let columnCount: Int
+
+    // グラフにプロットする円の半径
+    let circleRadius: CGFloat
+
+    /// 丸の色
+    let circleColor: Color
+
+    let labelSize: CGFloat
+
+    let labelColor: Color
 
     // 最大ステップカウント数
     var stepMaxCount: Int {
@@ -56,12 +72,15 @@ struct LineChart: View {
                         ZStack {
 
                             //縦線は親のViewギリギリまで表示
-                            verticalLine
+                            verticalLine(stepWidth: stepWidth)
 
                             ZStack {
-                                lineAndCircle
+
+                                lineAndCircle(stepWidth: stepWidth)
+
                                 label
                             }
+
                             // 親のサイズ - 30の余白をしないと文字がはみ出た時に綺麗に表示されない
                             .padding(.vertical, 30)
                             // 親のサイズ
@@ -69,9 +88,11 @@ struct LineChart: View {
                             .id(999)
                         }
                         .frame(width: CGFloat(stepMaxCount) * stepWidth, height: geometry.size.height)
+//                        .id(999)
+
                     }
                     .onChange(of: items.data) { id in
-                        reader.scrollTo(999)
+                        reader.scrollTo(999, anchor: .bottom)
                     }
 
                 }
@@ -87,6 +108,9 @@ struct LineChart: View {
                         items.data.append(data)
                     }
             }
+            .onAppear() {
+                self.stepWidth = geometry.size.width / CGFloat(self.columnCount)
+            }
         }
     }
 
@@ -94,13 +118,14 @@ struct LineChart: View {
 
         GeometryReader { geometry in
 
-            let points = items.plots(size: geometry.size)
+            let points = items.plots(height: geometry.size.height, stepWidth: stepWidth)
             let labels:[String] = items.measureLabels
 
             ForEach(Array(points.enumerated()), id: \.offset) { index, point in
                 if let point = point {
                     Text(labels[index])
-                        .font(.system(size: geometry.size.height / 3, weight: .thin, design: .default))
+                        .font(.system(size: self.labelSize, weight: .thin, design: .default))
+                        .foregroundColor(labelColor)
                         .frame(width: self.stepWidth, alignment: .center)
                         .offset(x: point.x - self.stepWidth / 2, y: point.y + yAxisSpaceLabel)
 
@@ -116,11 +141,11 @@ struct LineChart: View {
     }
 
     // グラフの縦線
-    private var verticalLine: some View {
+    private func verticalLine(stepWidth: CGFloat) -> some View {
         GeometryReader { geometry in
             Path.verticalLine(
                 max: stepMaxCount,
-                stepWidth: self.stepWidth,
+                stepWidth: stepWidth,
                 height: geometry.size.height
             )
             .stroke(Color.gray, style: StrokeStyle(lineWidth: lineWidth, dash: [2]))
@@ -128,12 +153,14 @@ struct LineChart: View {
     }
 
     // グラフの円と線
-    private var lineAndCircle: some View {
+    private func lineAndCircle(stepWidth: CGFloat) -> some View {
 
         GeometryReader { geometry in
 
+            let points = items.plots(height: geometry.size.height, stepWidth: stepWidth)
+
             Path
-                .line(points: items.plots(size: geometry.size), size: geometry.size)
+                .line(points: points)
                 .stroke(
                     Color.red.opacity(0.5),
                     style: StrokeStyle(lineWidth: lineWidth)
@@ -141,32 +168,28 @@ struct LineChart: View {
 
             Path
                 .circle(
-                    points: items.plots(size: geometry.size),
-                    size: geometry.size,
-                    radius: geometry.size.height * 0.1
+                    points: points,
+                    radius: self.circleRadius
                 )
                 .fill(
-                    Color.red
+                    circleColor
                 )
-                .onAppear {
-                    print(geometry.size.height)
-                }
         }
     }
 }
 
 extension Path {
     // 円表示
-    static func circle(points: [CGPoint?], size: CGSize, radius: CGFloat) -> Path {
+    static func circle(points: [CGPoint?], radius: CGFloat) -> Path {
         var path = Path()
         points.enumerated().forEach { index, point in
 
-            guard let unwrappedPoint = point else {
+            guard let point = point else {
                 return
             }
 
-            path.move(to: unwrappedPoint)
-            path.addArc(center: unwrappedPoint,
+            path.move(to: point)
+            path.addArc(center: point,
                         radius: radius,
                         startAngle: Angle(degrees: 0),
                         endAngle:   Angle(degrees: 360),
@@ -176,7 +199,7 @@ extension Path {
     }
 
     // 線表示
-    static func line(points: [CGPoint?], size: CGSize) -> Path {
+    static func line(points: [CGPoint?]) -> Path {
 
         var path = Path()
 
@@ -186,14 +209,14 @@ extension Path {
 
         points.enumerated().forEach { index, point in
 
-            guard let unwrappedPoint = point else {
+            guard let point = point else {
                 return
             }
 
             if index != notNillIndex.first {
-                path.addLine(to: unwrappedPoint)
+                path.addLine(to: point)
             } else {
-                path.move(to: unwrappedPoint)
+                path.move(to: point)
             }
         }
         return path
@@ -251,7 +274,7 @@ class LineChartDataItems: ObservableObject {
         }
     }
 
-    public func plots(size: CGSize) ->  [CGPoint?] {
+    public func plots(height: CGFloat, stepWidth: CGFloat) ->  [CGPoint?] {
 
         var result: [CGPoint?] = []
 
@@ -260,9 +283,6 @@ class LineChartDataItems: ObservableObject {
             guard let nonNillValue = value else {
                 return result.append(nil)
             }
-
-            let stepWidth = CGFloat(40)
-            let height = size.height
 
             let x = stepWidth * CGFloat(index) + stepWidth * 0.5
             let y: CGFloat
