@@ -10,25 +10,13 @@ import SwiftUI
 struct ContentView: View {
 
     @StateObject var items: LineChartDataItems = LineChartDataItems()
-    let randomPlotsCount: Int = 4
-    let graphHeight: CGFloat = 140
 
     var body: some View {
-        VStack {
-            ZStack {
-                GeometryReader { geometry in
-                    LineChart(
-                        items: items
-                    )
-                    .frame(
-                        maxWidth: .infinity,
-                        maxHeight: geometry.size.height
-                    )
-                    .background(Color.red.opacity(0.3))
-                }
-            }
-            .frame(height: self.graphHeight)
-        }
+        LineChart(items: items)
+            .frame(
+                maxWidth: 300,
+                maxHeight: 90
+            )
     }
 }
 
@@ -53,8 +41,6 @@ struct LineChart: View {
         items.data.count
     }
 
-    let padding: CGFloat = LineChartDataItems.padding
-
     // 初回値、目標値の横軸線の表示系管理
 
     var body: some View {
@@ -65,33 +51,34 @@ struct LineChart: View {
 
                 VStack(spacing: 0) {
 
-                    ScrollView(.horizontal) {
+                    ScrollView(.horizontal, showsIndicators: false) {
 
-                        ZStack(alignment: .center) {
+                        ZStack {
 
+                            //縦線は親のViewギリギリまで表示
                             verticalLine
 
                             ZStack {
                                 lineAndCircle
                                 label
-                                    .frame(maxWidth: .infinity, maxHeight: geometry.size.height)
-                                    .id(999)
-
                             }
-                            // 画面操作しない時は自動でスクロールされない
-                            .padding(10)
-                            .background(Color.green.opacity(0.3))
-                            
+                            // 親のサイズ - 30の余白をしないと文字がはみ出た時に綺麗に表示されない
+                            .padding(.vertical, 30)
+                            // 親のサイズ
+                            .frame(maxWidth: .infinity, maxHeight: geometry.size.height)
+                            .id(999)
                         }
                         .frame(width: CGFloat(stepMaxCount) * stepWidth, height: geometry.size.height)
-
                     }
-                    
                     .onChange(of: items.data) { id in
-                        reader.scrollTo(999, anchor: .trailing)
+                        reader.scrollTo(999)
                     }
-                    .onTapGesture {
 
+                }
+                .border(Color.gray, width: 0.5)
+
+                Text("値を送信")
+                    .onTapGesture {
                         let data = LineChartData.init(
                             scrollId: items.data.count + 1 ,
                             value: CGFloat.random(in: 0...100),
@@ -99,7 +86,6 @@ struct LineChart: View {
                         )
                         items.data.append(data)
                     }
-                }
             }
         }
     }
@@ -110,11 +96,11 @@ struct LineChart: View {
 
             let points = items.plots(size: geometry.size)
             let labels:[String] = items.measureLabels
-            let scrollIds:[String] = items.measureLabels
 
             ForEach(Array(points.enumerated()), id: \.offset) { index, point in
                 if let point = point {
                     Text(labels[index])
+                        .font(.system(size: geometry.size.height / 3, weight: .thin, design: .default))
                         .frame(width: self.stepWidth, alignment: .center)
                         .offset(x: point.x - self.stepWidth / 2, y: point.y + yAxisSpaceLabel)
 
@@ -131,7 +117,6 @@ struct LineChart: View {
 
     // グラフの縦線
     private var verticalLine: some View {
-
         GeometryReader { geometry in
             Path.verticalLine(
                 max: stepMaxCount,
@@ -158,11 +143,14 @@ struct LineChart: View {
                 .circle(
                     points: items.plots(size: geometry.size),
                     size: geometry.size,
-                    radius: circleRadius
+                    radius: geometry.size.height * 0.1
                 )
                 .fill(
                     Color.red
                 )
+                .onAppear {
+                    print(geometry.size.height)
+                }
         }
     }
 }
@@ -223,14 +211,10 @@ extension Path {
     }
 }
 
-
 class LineChartDataItems: ObservableObject {
 
     // グラフデータ
     @Published var data: [LineChartData] = []
-
-    // グラフ全体の高さ
-    @Published var graphHeight: CGFloat = 140
 
     // 最大値(nullは前後値で変換済み)
     var max: CGFloat {
@@ -246,12 +230,6 @@ class LineChartDataItems: ObservableObject {
 
     // 　上下の余白
     static var padding: CGFloat = 60
-
-
-    // プロットエリア
-    var plotAreaHeight: CGFloat {
-        return graphHeight - Self.padding
-    }
 
     // 測定結果データ
     var measures: [CGFloat?] {
@@ -301,9 +279,6 @@ class LineChartDataItems: ObservableObject {
         return result
     }
 
-    func calculateYAxis(y: CGFloat) -> CGFloat {
-        return plotAreaHeight - (plotAreaHeight / ( max - min) * (max - min  - (max - y)))
-    }
 }
 
 
@@ -323,7 +298,6 @@ struct Border: View {
                     .frame(width: geometry.size.width, height: geometry.size.height)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-
         }
     }
 }
