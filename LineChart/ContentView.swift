@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
 
+    // test
     @StateObject var items: LineChartDataItems = LineChartDataItems()
 
     var body: some View {
@@ -30,7 +31,7 @@ struct ContentView: View {
 struct LineChart: View {
 
     @StateObject var items: LineChartDataItems
-
+    @State var lastScrollId = 0
     // グラフの線と文字の間のスペース
     let yAxisSpaceLabel: CGFloat = 11.0
 
@@ -72,36 +73,41 @@ struct LineChart: View {
                         ZStack {
 
                             //縦線は親のViewギリギリまで表示
-                            verticalLine(stepWidth: stepWidth)
+                            verticalLine
 
                             ZStack {
 
-                                lineAndCircle(stepWidth: stepWidth)
+                                lineAndCircle
+                                    .frame(maxHeight: .infinity)
+
 
                                 label
                             }
 
                             // 親のサイズ - 30の余白をしないと文字がはみ出た時に綺麗に表示されない
                             .padding(.vertical, 30)
-                            // 親のサイズ
-                            .frame(maxWidth: .infinity, maxHeight: geometry.size.height)
-                            .id(999)
+
+
                         }
                         .frame(width: CGFloat(stepMaxCount) * stepWidth, height: geometry.size.height)
-//                        .id(999)
+                        .id(999)
 
                     }
                     .onChange(of: items.data) { id in
-                        reader.scrollTo(999, anchor: .bottom)
+                        withAnimation(.default) {
+                            reader.scrollTo(999, anchor: .trailing)
+                        }
                     }
+
 
                 }
                 .border(Color.gray, width: 0.5)
 
                 Text("値を送信")
                     .onTapGesture {
+
                         let data = LineChartData.init(
-                            scrollId: items.data.count + 1 ,
+                            scrollId: items.data.count,
                             value: CGFloat.random(in: 0...100),
                             datetime: .init(time: "01:00", date: "12")
                         )
@@ -118,7 +124,7 @@ struct LineChart: View {
 
         GeometryReader { geometry in
 
-            let points = items.plots(height: geometry.size.height, stepWidth: stepWidth)
+            let points = items.plots(height: geometry.size.height, stepWidth: self.stepWidth)
             let labels:[String] = items.measureLabels
 
             ForEach(Array(points.enumerated()), id: \.offset) { index, point in
@@ -128,7 +134,6 @@ struct LineChart: View {
                         .foregroundColor(labelColor)
                         .frame(width: self.stepWidth, alignment: .center)
                         .offset(x: point.x - self.stepWidth / 2, y: point.y + yAxisSpaceLabel)
-
                 }
             }
         }
@@ -141,11 +146,11 @@ struct LineChart: View {
     }
 
     // グラフの縦線
-    private func verticalLine(stepWidth: CGFloat) -> some View {
+    private var verticalLine:  some View {
         GeometryReader { geometry in
             Path.verticalLine(
                 max: stepMaxCount,
-                stepWidth: stepWidth,
+                stepWidth: self.stepWidth,
                 height: geometry.size.height
             )
             .stroke(Color.gray, style: StrokeStyle(lineWidth: lineWidth, dash: [2]))
@@ -153,11 +158,11 @@ struct LineChart: View {
     }
 
     // グラフの円と線
-    private func lineAndCircle(stepWidth: CGFloat) -> some View {
+    private var lineAndCircle : some  View {
 
         GeometryReader { geometry in
 
-            let points = items.plots(height: geometry.size.height, stepWidth: stepWidth)
+            let points = items.plots(height: geometry.size.height, stepWidth: self.stepWidth)
 
             Path
                 .line(points: points)
@@ -175,6 +180,7 @@ struct LineChart: View {
                     circleColor
                 )
         }
+
     }
 }
 
